@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="PanOrden Pro" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#2c3e50" />
+<title>PanOrden Pro</title>
+
+<!-- Favicon / icono inline como SVG -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232c3e50'/><text y='.9em' font-size='75' x='12'>🍞</text></svg>" />
+
+<!-- Manifest inline via JS (para PWA) -->
+<script>
+  const manifest = {
+    name: "PanOrden Pro",
+    short_name: "PanOrden",
+    description: "Gestión de pedidos de pan por rutas",
+    start_url: ".",
+    display: "standalone",
+    background_color: "#f4f6f9",
+    theme_color: "#2c3e50",
+    icons: [{
+      src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%232c3e50'/><text y='.85em' font-size='380' x='60'>🍞</text></svg>",
+      sizes: "512x512",
+      type: "image/svg+xml",
+      purpose: "any maskable"
+    }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('link');
+  link.rel  = 'manifest';
+  link.href = url;
+  document.currentScript.after(link);
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overscroll-behavior: none; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f4f6f9;
+    color: #222;
+    -webkit-tap-highlight-color: transparent;
+    /* safe area para iPhone con notch */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type=number] { -moz-appearance: textfield; }
+  details summary { list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  button { -webkit-tap-highlight-color: transparent; }
+  button:active { opacity: 0.8; transform: scale(0.97); }
+
+  /* Banner de instalación */
+  #install-banner {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;
+    background: #2c3e50; color: #fff;
+    padding: 14px 20px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    flex-direction: column; gap: 10px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+  }
+  #install-banner.show { display: flex; }
+  #install-banner h3 { font-size: 15px; font-weight: 700; }
+  #install-banner p  { font-size: 13px; opacity: 0.8; }
+  #install-banner .btns { display: flex; gap: 10px; }
+  #install-banner .btns button {
+    flex: 1; padding: 10px; border-radius: 8px;
+    font-size: 14px; font-weight: 700; cursor: pointer; border: none;
+  }
+  #install-banner .btn-install { background: #e67e22; color: #fff; }
+  #install-banner .btn-close   { background: rgba(255,255,255,0.15); color: #fff; }
+
+  /* iOS install hint */
+  #ios-hint {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;
+    background: #fff; border-top: 1px solid #ddd;
+    padding: 16px 20px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  }
+  #ios-hint.show { display: block; }
+  #ios-hint p { font-size: 14px; color: #333; line-height: 1.5; }
+  #ios-hint strong { color: #2c3e50; }
+  #ios-hint button {
+    margin-top: 12px; width: 100%; padding: 10px;
+    background: #2c3e50; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Banner instalación Android/Chrome -->
+<div id="install-banner">
+  <div>
+    <h3>🍞 Instalar PanOrden Pro</h3>
+    <p>Agrégala a tu pantalla de inicio para acceder rápido sin abrir el navegador.</p>
+  </div>
+  <div class="btns">
+    <button class="btn-install" id="btn-install">Instalar App</button>
+    <button class="btn-close"   id="btn-close-banner">Ahora no</button>
+  </div>
+</div>
+
+<!-- Hint instalación iOS -->
+<div id="ios-hint">
+  <p>Para instalar en iPhone: toca <strong>Compartir</strong> (□↑) en Safari y luego <strong>"Agregar a pantalla de inicio"</strong>.</p>
+  <button id="btn-close-ios">Entendido</button>
+</div>
+
+<script type="text/babel">
+const { useState, useMemo, useEffect } = React;
+
+const RUTAS = {
+  delaware: {
+    id:"delaware", nombre:"Ruta Delaware", color:"#e67e22",
+    tiendas:[
+      {id:"d1",  nombre:"Mexico Grocery"},
+      {id:"d2",  nombre:"Tacos El Compa"},
+      {id:"d3",  nombre:"Tacos Guys"},
+      {id:"d4",  nombre:"Poco Mexico"},
+      {id:"d5",  nombre:"La Simpatica"},
+      {id:"d6",  nombre:"Los Volcanes"},
+      {id:"d7",  nombre:"Mr Tacos"},
+      {id:"d8",  nombre:"Azteca Mexica Grill"},
+      {id:"d9",  nombre:"Nework"},
+      {id:"d10", nombre:"La Cabana"},
+      {id:"d11", nombre:"Tacos La Cabana"},
+      {id:"d12", nombre:"Dance Nutrition"},
+      {id:"d13", nombre:"Cucurrucucu"},
+      {id:"d14", nombre:"Atexca Marrows"},
+      {id:"d15", nombre:"Villa Corona"},
+      {id:"d16", nombre:"Midington"},
+      {id:"d17", nombre:"Newcastle"},
+      {id:"d18", nombre:"La Placita"},
+    ],
+  },
+  web: {
+    id:"web", nombre:"Ruta Web", color:"#2980b9",
+    tiendas:[
+      {id:"w1",nombre:"Rojas"},
+      {id:"w2",nombre:"Rosita"},
+      {id:"w3",nombre:"Market"},
+      {id:"w4",nombre:"Marquete 1"},
+      {id:"w5",nombre:"Marquete 2"},
+    ],
+  },
+  westchester: {
+    id:"westchester", nombre:"Ruta West Chester", color:"#27ae60",
+    tiendas:[
+      {id:"wc1",nombre:"La Trailita"},
+      {id:"wc2",nombre:"La Bodeguita"},
+      {id:"wc3",nombre:"Taco Banero Express"},
+      {id:"wc4",nombre:"La Rancherita"},
+      {id:"wc5",nombre:"Restaurante Modelos"},
+    ],
+  },
+};
+
+const PRODUCTOS = [
+  {id:"TR",   nombre:"Tortas",        abrev:"TR",    color:"#e67e22"},
+  {id:"TM",   nombre:"T. Mollete",    abrev:"TM",    color:"#c0392b"},
+  {id:"CEM",  nombre:"Cemitas",       abrev:"CEM",   color:"#8e44ad"},
+  {id:"CEMM", nombre:"Cemitas Mix",   abrev:"CEM M", color:"#6c3483"},
+  {id:"TES",  nombre:"T. Especiales", abrev:"Tes",   color:"#1abc9c"},
+  {id:"PMIX", nombre:"P. Mix",        abrev:"P MIX", color:"#2980b9"},
+  {id:"PAMB", nombre:"Pambazos Mix",  abrev:"PAM M", color:"#27ae60"},
+  {id:"MOS",  nombre:"Mosaicos",      abrev:"MOS",   color:"#f39c12"},
+  {id:"F",    nombre:"Flautas",       abrev:"F",     color:"#e74c3c"},
+  {id:"C",    nombre:"Costillas",     abrev:"C",     color:"#795548"},
+  {id:"P",    nombre:"Pozole",        abrev:"P",     color:"#d35400"},
+];
+
+const TODAY_KEY = new Date().toISOString().slice(0,10);
+const LS_KEY    = "panorden_" + TODAY_KEY;
+
+const emptyOrder = () => Object.fromEntries(PRODUCTOS.map(p=>[p.id,""]));
+
+function sumRuta(pr) {
+  const t = {}; PRODUCTOS.forEach(p=>{t[p.id]=0;});
+  Object.values(pr||{}).forEach(tp=>PRODUCTOS.forEach(p=>{t[p.id]+=parseInt(tp[p.id]||0,10);}));
+  return t;
+}
+function sumAll(pedidos) {
+  const t = {}; PRODUCTOS.forEach(p=>{t[p.id]=0;});
+  Object.values(pedidos).forEach(rp=>{const r=sumRuta(rp); PRODUCTOS.forEach(p=>{t[p.id]+=r[p.id];});});
+  return t;
+}
+
+const VIEWS = {HOME:"home",RUTA:"ruta",TIENDA:"tienda",RES_RUTAS:"res_rutas",RES_PAN:"res_pan",RES_FINAL:"res_final"};
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const cerradas = {};
+    Object.entries(data.cerradas||{}).forEach(([k,arr])=>{ cerradas[k]=new Set(arr); });
+    return { pedidos: data.pedidos||{}, cerradas };
+  } catch(e) { return null; }
+}
+
+function saveState(pedidos, cerradas) {
+  try {
+    const cerradasArr = {};
+    Object.entries(cerradas).forEach(([k,s])=>{ cerradasArr[k]=[...s]; });
+    localStorage.setItem(LS_KEY, JSON.stringify({pedidos, cerradas:cerradasArr}));
+  } catch(e) {}
+}
+
+function App() {
+  const saved = loadState();
+  const [view,      setView]      = useState(VIEWS.HOME);
+  const [rutaId,    setRutaId]    = useState(null);
+  const [tiendaId,  setTiendaId]  = useState(null);
+  const [pedidos,   setPedidos]   = useState(saved?.pedidos   || {});
+  const [cerradas,  setCerradas]  = useState(saved?.cerradas  || {});
+  const [temp,      setTemp]      = useState(emptyOrder());
+  const [saveFlash, setSaveFlash] = useState(false);
+
+  const fecha  = new Date().toLocaleDateString("es-MX",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const ruta   = rutaId  ? RUTAS[rutaId] : null;
+  const tienda = tiendaId && ruta ? ruta.tiendas.find(t=>t.id===tiendaId) : null;
+  const isCerrada  = (rId,tId) => !!(cerradas[rId]?.has(tId));
+  const compEnRuta = ruta ? ruta.tiendas.filter(t=>isCerrada(rutaId,t.id)).length : 0;
+
+  const totGlobal   = useMemo(()=>sumAll(pedidos),[pedidos]);
+  const totalGlobal = useMemo(()=>Object.values(totGlobal).reduce((a,b)=>a+b,0),[totGlobal]);
+  const totalTemp   = PRODUCTOS.reduce((a,p)=>a+parseInt(temp[p.id]||0,10),0);
+
+  useEffect(()=>{
+    saveState(pedidos,cerradas);
+    setSaveFlash(true);
+    const t=setTimeout(()=>setSaveFlash(false),1400);
+    return ()=>clearTimeout(t);
+  },[pedidos,cerradas]);
+
+  function abrirTienda(tid) {
+    setTemp({...(pedidos[rutaId]?.[tid]||emptyOrder())});
+    setTiendaId(tid); setView(VIEWS.TIENDA);
+  }
+  function guardar() {
+    setPedidos(prev=>({...prev,[rutaId]:{...(prev[rutaId]||{}),[tiendaId]:{...temp}}}));
+    setCerradas(prev=>{const s=new Set(prev[rutaId]||[]);s.add(tiendaId);return{...prev,[rutaId]:s};});
+    setTiendaId(null); setView(VIEWS.RUTA);
+  }
+  function volver() {
+    if(view===VIEWS.TIENDA)     {setTiendaId(null);setTemp(emptyOrder());setView(VIEWS.RUTA);}
+    else if(view===VIEWS.RUTA)  {setRutaId(null);setView(VIEWS.HOME);}
+    else setView(VIEWS.HOME);
+  }
+  function chQty(pid,delta) {
+    setTemp(prev=>{const v=Math.max(0,parseInt(prev[pid]||0,10)+delta);return{...prev,[pid]:String(v)};});
+  }
+  function resetDay() {
+    if(!window.confirm("¿Reiniciar todos los pedidos del día?")) return;
+    setPedidos({}); setCerradas({}); setView(VIEWS.HOME);
+  }
+
+  function printDriver(rId) {
+    const r=RUTAS[rId], ped=pedidos[rId]||{};
+    const rows=r.tiendas.map((t,i)=>{
+      const tp=ped[t.id]||{};
+      const items=PRODUCTOS.filter(p=>parseInt(tp[p.id]||0)>0).map(p=>p.abrev+": "+tp[p.id]).join(", ");
+      const tot=PRODUCTOS.reduce((a,p)=>a+parseInt(tp[p.id]||0,10),0);
+      return `<tr><td style='padding:7px 8px;border-bottom:1px solid #eee;'><div style='width:16px;height:16px;border:2px solid #aaa;border-radius:3px;'></div></td><td style='padding:7px 8px;border-bottom:1px solid #eee;'><strong>${i+1}. ${t.nombre}</strong>${items?`<br><span style='font-size:11px;color:#666;'>${items}</span>`:""}</td><td style='padding:7px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;'>${tot||""}</td></tr>`;
+    }).join("");
+    const gt=r.tiendas.reduce((a,t)=>a+PRODUCTOS.reduce((b,p)=>b+parseInt((ped[t.id]||{})[p.id]||0,10),0),0);
+    const w=window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Driver - ${r.nombre}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111;}table{width:100%;border-collapse:collapse;margin-top:14px;}th{background:#f0f0f0;padding:7px 8px;text-align:left;border-bottom:2px solid #ccc;font-size:12px;}.foot{margin-top:14px;padding-top:10px;border-top:2px solid #ccc;display:flex;justify-content:space-between;font-weight:700;}.sign{margin-top:18px;display:flex;justify-content:space-between;font-size:12px;color:#888;}@media print{button{display:none;}}</style></head><body><button onclick='window.print()' style='margin-bottom:16px;padding:8px 20px;background:#27ae60;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;'>Imprimir</button><h2>HOJA DE ENTREGA - ${r.nombre.toUpperCase()}</h2><div style='font-size:12px;color:#666;'>${fecha.toUpperCase()}</div><table><thead><tr><th>✓</th><th>Tienda / Pedido</th><th style='text-align:right;'>Pzs</th></tr></thead><tbody>${rows}</tbody></table><div class='foot'><span>TOTAL PIEZAS:</span><span>${gt}</span></div><div class='sign'><span>Firma Driver: _______________________</span><span>Hora Salida: _______________</span></div></body></html>`);
+    w.document.close();
+  }
+
+  const S = { // Styles helpers
+    card:  {background:"#fff",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"},
+    btn: (bg,color,extra={}) => ({
+      cursor:"pointer", fontFamily:"inherit", border:"none",
+      background:bg, color:color, ...extra
+    }),
+  };
+
+  const Btn = ({label,onClick,style={}}) => (
+    <button onClick={onClick} style={{cursor:"pointer",fontFamily:"inherit",border:"none",...style}}>{label}</button>
+  );
+
+  return (
+    <div style={{background:"#f4f6f9",minHeight:"100vh",color:"#222"}}>
+
+      {/* HEADER */}
+      <div style={{
+        background:"#2c3e50",color:"#fff",
+        display:"flex",alignItems:"center",
+        padding:"12px 20px",gap:12,
+        position:"sticky",top:0,zIndex:100,
+        boxShadow:"0 2px 8px rgba(0,0,0,0.3)"
+      }}>
+        <div style={{flex:1,fontWeight:800,fontSize:18}}>🍞 PanOrden Pro</div>
+        {saveFlash && <span style={{fontSize:11,color:"#aaa",transition:"opacity 0.3s"}}>💾</span>}
+        <div style={{fontSize:11,color:"#aaa",textAlign:"right",lineHeight:1.3,maxWidth:120}}>{fecha}</div>
+        {view!==VIEWS.HOME && (
+          <button onClick={volver} style={{
+            background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",
+            color:"#fff",padding:"6px 14px",borderRadius:8,fontSize:13,cursor:"pointer",fontFamily:"inherit"
+          }}>← Volver</button>
+        )}
+      </div>
+
+      <div style={{maxWidth:680,margin:"0 auto",padding:"20px 16px 40px"}}>
+
+        {/* ── HOME ─────────────────────────────── */}
+        {view===VIEWS.HOME && (<>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,color:"#2c3e50"}}>Selecciona una Ruta</h2>
+          <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:24}}>
+            {Object.values(RUTAS).map(r=>{
+              const comp=r.tiendas.filter(t=>isCerrada(r.id,t.id)).length;
+              const pct =r.tiendas.length?(comp/r.tiendas.length)*100:0;
+              return (
+                <button key={r.id} onClick={()=>{setRutaId(r.id);setView(VIEWS.RUTA);}} style={{
+                  background:"#fff",border:"1px solid #e0e0e0",borderLeft:"6px solid "+r.color,
+                  borderRadius:12,padding:"16px 20px",cursor:"pointer",textAlign:"left",
+                  boxShadow:"0 2px 6px rgba(0,0,0,0.06)",fontFamily:"inherit"
+                }}>
+                  <div style={{fontWeight:800,fontSize:17,color:r.color}}>{r.nombre}</div>
+                  <div style={{color:"#888",fontSize:12,marginTop:8}}>{comp}/{r.tiendas.length} tiendas completadas</div>
+                  <div style={{background:"#eee",borderRadius:4,height:6,marginTop:4,overflow:"hidden"}}>
+                    <div style={{width:pct+"%",background:r.color,height:"100%",transition:"width 0.4s"}} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:12}}>
+            {[
+              {l:"📋 Resumen por Rutas",  v:VIEWS.RES_RUTAS, dark:false},
+              {l:"👨‍🍳 Resumen Panaderos", v:VIEWS.RES_PAN,   dark:false},
+              {l:"📊 Cierre del Día",     v:VIEWS.RES_FINAL, dark:true},
+            ].map(({l,v,dark})=>(
+              <button key={v} onClick={()=>setView(v)} style={{
+                flex:1,minWidth:150,fontFamily:"inherit",cursor:"pointer",
+                background:dark?"#2c3e50":"#fff",
+                color:dark?"#fff":"#2c3e50",
+                border:dark?"none":"1.5px solid #2c3e50",
+                borderRadius:10,padding:"12px 16px",fontWeight:dark?700:600,fontSize:14
+              }}>{l}</button>
+            ))}
+          </div>
+          <button onClick={resetDay} style={{
+            width:"100%",fontFamily:"inherit",cursor:"pointer",
+            background:"#fff",color:"#c0392b",
+            border:"1.5px solid #c0392b",borderRadius:10,padding:"10px 16px",fontWeight:600,fontSize:13
+          }}>🗑️ Reiniciar Día</button>
+        </>)}
+
+        {/* ── RUTA ─────────────────────────────── */}
+        {view===VIEWS.RUTA && ruta && (<>
+          <div style={{background:ruta.color,borderRadius:12,padding:"16px 20px",marginBottom:16,color:"#fff"}}>
+            <h2 style={{margin:0,fontSize:22,fontWeight:800}}>{ruta.nombre}</h2>
+            <div style={{opacity:0.85,fontSize:13,marginTop:4}}>{compEnRuta} de {ruta.tiendas.length} tiendas completadas</div>
+          </div>
+          <button onClick={()=>printDriver(rutaId)} style={{
+            width:"100%",fontFamily:"inherit",cursor:"pointer",display:"block",
+            background:"#fff",border:"1.5px solid "+ruta.color,color:ruta.color,
+            borderRadius:10,padding:"10px 16px",fontWeight:700,fontSize:14,marginBottom:14
+          }}>🖨️ Imprimir Hoja del Driver</button>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {ruta.tiendas.map(t=>{
+              const cerrada=isCerrada(rutaId,t.id);
+              const tp=pedidos[rutaId]?.[t.id];
+              const pzs=tp?PRODUCTOS.reduce((a,p)=>a+parseInt(tp[p.id]||0,10),0):0;
+              return (
+                <button key={t.id} onClick={()=>abrirTienda(t.id)} style={{
+                  background:"#fff",border:"1px solid #e0e0e0",
+                  borderLeft:cerrada?"5px solid "+ruta.color:"5px solid #ddd",
+                  borderRadius:10,padding:"14px 16px",cursor:"pointer",
+                  display:"flex",alignItems:"center",justifyContent:"space-between",
+                  textAlign:"left",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",fontFamily:"inherit"
+                }}>
+                  <div style={{fontWeight:700,fontSize:15}}>{t.nombre}</div>
+                  {cerrada
+                    ? <span style={{background:ruta.color,color:"#fff",borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:700}}>✓ {pzs} pzs</span>
+                    : <span style={{color:"#aaa",fontSize:13}}>Pendiente →</span>
+                  }
+                </button>
+              );
+            })}
+          </div>
+        </>)}
+
+        {/* ── TIENDA / PEDIDO ───────────────────── */}
+        {view===VIEWS.TIENDA && tienda && ruta && (
+          <div>
+            <div style={{background:ruta.color,borderRadius:12,padding:"16px 20px",marginBottom:20,color:"#fff"}}>
+              <div style={{fontSize:20,fontWeight:800}}>{tienda.nombre}</div>
+              <div style={{opacity:0.7,fontSize:12,marginTop:4}}>{ruta.nombre}</div>
+            </div>
+            <div style={{background:"#fff",borderRadius:12,padding:20,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
+              <h3 style={{marginTop:0,marginBottom:16,fontSize:17,color:"#333"}}>Ingresa el Pedido</h3>
+              {PRODUCTOS.map(p=>(
+                <div key={p.id} style={{
+                  display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"10px 0",borderBottom:"1px solid #f0f0f0"
+                }}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:600,fontSize:15}}>
+                    <span style={{display:"inline-block",width:10,height:10,borderRadius:"50%",background:p.color,flexShrink:0}} />
+                    <span>{p.nombre}</span>
+                    <span style={{fontSize:11,color:"#bbb",fontWeight:400}}>({p.abrev})</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    {["−","＋"].map((sym,i)=>(
+                      <button key={sym} onClick={()=>chQty(p.id,i?1:-1)} style={{
+                        width:36,height:36,borderRadius:8,border:"1.5px solid #ddd",
+                        background:"#f7f7f7",fontSize:20,fontWeight:700,cursor:"pointer",
+                        display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"
+                      }}>{sym}</button>
+                    ))}
+                    <input type="number" min="0" value={temp[p.id]}
+                      onChange={e=>setTemp(prev=>({...prev,[p.id]:e.target.value}))}
+                      style={{
+                        width:52,textAlign:"center",border:"1.5px solid #ddd",
+                        borderRadius:8,padding:"6px 0",fontSize:16,fontWeight:700,
+                        fontFamily:"inherit"
+                      }}
+                    />
+                    <span style={{fontSize:12,color:"#999",width:24}}>pzs</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{textAlign:"right",marginTop:14,fontSize:15,color:"#444"}}>
+                Total: <strong>{totalTemp} piezas</strong>
+              </div>
+              <div style={{display:"flex",gap:12,marginTop:20}}>
+                <button onClick={volver} style={{
+                  flex:1,fontFamily:"inherit",cursor:"pointer",
+                  background:"#f0f0f0",border:"none",borderRadius:10,
+                  padding:14,fontWeight:700,fontSize:15,color:"#555"
+                }}>Cancelar</button>
+                <button onClick={guardar} style={{
+                  flex:2,fontFamily:"inherit",cursor:"pointer",
+                  background:ruta.color,border:"none",borderRadius:10,
+                  padding:14,fontWeight:800,fontSize:15,color:"#fff"
+                }}>✓ Cerrar Pedido</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── RESUMEN RUTAS ─────────────────────── */}
+        {view===VIEWS.RES_RUTAS && (
+          <div>
+            <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,color:"#2c3e50"}}>Resumen por Rutas</h2>
+            {Object.values(RUTAS).map(r=>{
+              const tot=sumRuta(pedidos[r.id]);
+              const total=Object.values(tot).reduce((a,b)=>a+b,0);
+              const comp=r.tiendas.filter(t=>isCerrada(r.id,t.id)).length;
+              return (
+                <div key={r.id} style={{background:"#fff",borderRadius:12,padding:18,marginBottom:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)",borderTop:"4px solid "+r.color}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:18,color:r.color}}>{r.nombre}</div>
+                      <div style={{color:"#666",fontSize:13,marginTop:2}}>{comp}/{r.tiendas.length} tiendas</div>
+                    </div>
+                    <div style={{fontSize:28,fontWeight:900,color:r.color}}>{total} pzs</div>
+                  </div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                    {PRODUCTOS.filter(p=>tot[p.id]>0).map(p=>(
+                      <div key={p.id} style={{display:"flex",alignItems:"center",gap:6,background:"#f4f6f9",borderRadius:8,padding:"5px 10px"}}>
+                        <span style={{display:"inline-block",width:10,height:10,borderRadius:"50%",background:p.color}} />
+                        <span style={{fontSize:13,color:"#444"}}>{p.abrev}</span>
+                        <span style={{fontWeight:800,fontSize:14}}>{tot[p.id]}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <details style={{marginTop:12}}>
+                    <summary style={{cursor:"pointer",color:"#888",fontSize:13,userSelect:"none",padding:"4px 0"}}>▶ Ver desglose por tienda</summary>
+                    {r.tiendas.filter(t=>isCerrada(r.id,t.id)).map(t=>{
+                      const tp=pedidos[r.id]?.[t.id]||{};
+                      return (
+                        <div key={t.id} style={{marginTop:8,padding:"8px 12px",background:"#f9f9f9",borderRadius:8}}>
+                          <strong style={{fontSize:13}}>{t.nombre}</strong>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                            {PRODUCTOS.filter(p=>parseInt(tp[p.id]||0)>0).map(p=>(
+                              <span key={p.id} style={{background:"#ececec",borderRadius:6,padding:"2px 8px",fontSize:12}}>{p.abrev}: {tp[p.id]}</span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </details>
+                  <button onClick={()=>printDriver(r.id)} style={{
+                    marginTop:12,width:"100%",fontFamily:"inherit",cursor:"pointer",
+                    background:"#fff",border:"1.5px solid "+r.color,color:r.color,
+                    borderRadius:8,padding:"8px",fontWeight:700,fontSize:13
+                  }}>🖨️ Imprimir Hoja Driver – {r.nombre}</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── RESUMEN PANADEROS ─────────────────── */}
+        {view===VIEWS.RES_PAN && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
+              <span style={{fontSize:48}}>👨‍🍳</span>
+              <div>
+                <h2 style={{margin:0,fontSize:22,fontWeight:800}}>Orden de Producción</h2>
+                <div style={{color:"#888",fontSize:13}}>{fecha}</div>
+              </div>
+            </div>
+            <div style={{background:"#fff",borderRadius:12,padding:20,boxShadow:"0 2px 8px rgba(0,0,0,0.08)",marginBottom:20}}>
+              <h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700,color:"#333"}}>Pan a Preparar — Total del Día</h3>
+              {PRODUCTOS.map(p=>(
+                <div key={p.id} style={{display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f0f0f0"}}>
+                  <span style={{display:"inline-block",width:14,height:14,borderRadius:"50%",background:p.color,marginRight:8}} />
+                  <span style={{fontWeight:600,fontSize:15,flex:1}}>{p.nombre} <span style={{fontWeight:400,fontSize:12,color:"#bbb"}}>({p.abrev})</span></span>
+                  <span style={{fontSize:24,fontWeight:900,color:"#2c3e50",width:70,textAlign:"right"}}>{totGlobal[p.id]||0}</span>
+                  <span style={{color:"#999",fontSize:12,width:45,textAlign:"right"}}>pzs</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,paddingTop:12,borderTop:"2px solid #2c3e50",fontWeight:800,fontSize:16}}>
+                <span>TOTAL</span>
+                <span style={{fontSize:28,color:"#2c3e50"}}>{totalGlobal} pzs</span>
+              </div>
+            </div>
+            <h3 style={{fontSize:18,fontWeight:700,marginBottom:12,color:"#2c3e50"}}>Desglose por Ruta</h3>
+            {Object.values(RUTAS).map(r=>{
+              const tot=sumRuta(pedidos[r.id]);
+              const total=Object.values(tot).reduce((a,b)=>a+b,0);
+              return (
+                <div key={r.id} style={{background:"#fff",borderRadius:10,padding:"14px 16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",borderLeft:"4px solid "+r.color}}>
+                  <div style={{color:r.color,fontWeight:700}}>{r.nombre}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:8}}>
+                    {PRODUCTOS.filter(p=>tot[p.id]>0).map(p=>(
+                      <div key={p.id} style={{display:"flex",alignItems:"center",gap:6,background:"#f4f6f9",borderRadius:8,padding:"5px 10px"}}>
+                        <span style={{display:"inline-block",width:10,height:10,borderRadius:"50%",background:p.color}} />
+                        <span style={{fontSize:13}}>{p.abrev}</span>
+                        <span style={{fontWeight:800,fontSize:14}}>{tot[p.id]}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:13,color:"#666",marginTop:6}}>Subtotal: {total} pzs</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── CIERRE DEL DÍA ───────────────────── */}
+        {view===VIEWS.RES_FINAL && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
+              <span style={{fontSize:48}}>📊</span>
+              <div>
+                <h2 style={{margin:0,fontSize:22,fontWeight:800}}>Cierre del Día</h2>
+                <div style={{color:"#888",fontSize:13}}>{fecha}</div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:20}}>
+              {Object.values(RUTAS).map(r=>{
+                const comp=r.tiendas.filter(t=>isCerrada(r.id,t.id)).length;
+                const tot=sumRuta(pedidos[r.id]);
+                const total=Object.values(tot).reduce((a,b)=>a+b,0);
+                return (
+                  <div key={r.id} style={{background:"#fff",borderRadius:12,padding:16,textAlign:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.07)",borderTop:"3px solid "+r.color}}>
+                    <div style={{color:r.color,fontWeight:700,fontSize:13}}>{r.nombre}</div>
+                    <div style={{fontSize:36,fontWeight:900,color:"#2c3e50",lineHeight:1.1,marginTop:4}}>{total}</div>
+                    <div style={{color:"#888",fontSize:12}}>piezas</div>
+                    <div style={{color:"#aaa",fontSize:11,marginTop:4}}>{comp}/{r.tiendas.length} tiendas</div>
+                  </div>
+                );
+              })}
+              <div style={{background:"#2c3e50",borderRadius:12,padding:16,textAlign:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.07)",gridColumn:"1 / -1"}}>
+                <div style={{color:"#fff",fontWeight:700,fontSize:13}}>TOTAL GLOBAL</div>
+                <div style={{fontSize:42,fontWeight:900,color:"#fff",lineHeight:1.1,marginTop:4}}>{totalGlobal}</div>
+                <div style={{color:"#ccc",fontSize:13}}>piezas del día</div>
+              </div>
+            </div>
+            <div style={{background:"#fff",borderRadius:12,padding:20,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
+              <h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700}}>Producción Total por Producto</h3>
+              {PRODUCTOS.map(p=>{
+                const pct=totalGlobal?Math.round((totGlobal[p.id]/totalGlobal)*100):0;
+                return (
+                  <div key={p.id} style={{marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{display:"inline-block",width:12,height:12,borderRadius:"50%",background:p.color}} />
+                        <span style={{fontWeight:600,fontSize:14}}>{p.nombre} <span style={{fontWeight:400,fontSize:11,color:"#bbb"}}>({p.abrev})</span></span>
+                      </div>
+                      <span style={{fontWeight:800,fontSize:14,color:"#2c3e50"}}>{totGlobal[p.id]||0} pzs</span>
+                    </div>
+                    <div style={{background:"#eee",borderRadius:4,height:6,overflow:"hidden"}}>
+                      <div style={{width:pct+"%",background:p.color,height:"100%",transition:"width 0.5s"}} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<!-- Service Worker + Lógica de instalación -->
+<script>
+// ── Service Worker (offline) ──────────────────────────────
+const SW_CODE = `
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open('panorden-v1').then(c => c.addAll(['/']))
+  );
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => { self.clients.claim(); });
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request))
+  );
+});
+`;
+const swBlob = new Blob([SW_CODE], {type:'text/javascript'});
+const swUrl  = URL.createObjectURL(swBlob);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register(swUrl).catch(()=>{});
+}
+
+// ── Banner de instalación Android/Chrome ─────────────────
+let deferredPrompt = null;
+const banner    = document.getElementById('install-banner');
+const btnInstall = document.getElementById('btn-install');
+const btnClose   = document.getElementById('btn-close-banner');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  banner.classList.add('show');
+});
+btnInstall.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  banner.classList.remove('show');
+});
+btnClose.addEventListener('click', () => banner.classList.remove('show'));
+
+// ── Hint de instalación iOS/Safari ───────────────────────
+const iosHint   = document.getElementById('ios-hint');
+const btnCloseIos = document.getElementById('btn-close-ios');
+const isIos     = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone;
+const iosDismissed = sessionStorage.getItem('ios-hint-dismissed');
+
+if (isIos && !isStandalone && !iosDismissed) {
+  setTimeout(() => iosHint.classList.add('show'), 2000);
+}
+btnCloseIos.addEventListener('click', () => {
+  iosHint.classList.remove('show');
+  sessionStorage.setItem('ios-hint-dismissed','1');
+});
+</script>
+</body>
+</html>
